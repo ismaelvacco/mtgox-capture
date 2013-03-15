@@ -1,0 +1,12 @@
+Source: mtgox-capture
+Maintainer: Ismael Vacco <isma.vacco@gmail.com>
+Section: misc
+Priority: optional
+Standards-Version: 0.1.1
+Build-Depends: debhelper (>= 8)
+
+Package: mtgox-capture
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: mtgox capture package work capturing information of mtgox service (v1 version).
+ All data will store in redis server.
