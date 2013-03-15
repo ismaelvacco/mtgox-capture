@@ -1,0 +1,68 @@
+#!/usr/bin/python
+import ConfigParser
+import urllib2
+import json
+import datetime
+import time
+
+import redis
+from daemon import runner
+
+
+CONFIG_FILE = '/home/ismael/mtgox-capture/etc/config.ini'
+config = ConfigParser.RawConfigParser()
+config.read(CONFIG_FILE)
+
+URL_SERVICE = 'http://data.mtgox.com/api/1/BTCUSD/ticker'
+
+REDIS_SERVER_HOSTNAME = config.get('redis','hostname')
+REDIS_SERVER_PORT = config.getint('redis', 'port')
+REDIS_SERVER_DB = config.getint('redis', 'db')
+
+pool = redis.ConnectionPool(host=REDIS_SERVER_HOSTNAME, port=REDIS_SERVER_PORT, db=REDIS_SERVER_DB)
+redis_conn = redis.Redis(connection_pool=pool)
+
+
+class Capture():
+	def __init__(self):
+		self.stdin_path = '/dev/null'
+		self.stdout_path = '/dev/tty'
+		self.stderr_path = '/dev/tty'
+		self.pidfile_path =  '/tmp/mtgox_capture.pid'
+		self.pidfile_timeout = 5
+
+	def _get_data(self):
+		response = urllib2.urlopen(URL_SERVICE)
+		data_json = response.read()
+		response.close()
+		data = json.loads(data_json)
+		last_bid = data['return']['last']
+		sell_bid = data['return']['sell']
+		buy_bid = data['return']['buy']
+		vol = data['return']['vol']
+		now = data['return']['now']
+
+		last_price = last_bid['value']
+		sell_price = sell_bid['value']
+		buy_price = buy_bid['value']
+		vol_value = vol['value']
+		date = datetime.datetime.fromtimestamp(int(now)/1e6)
+		return {'last': last_price, 'sell': sell_price, 'buy': buy_price, 'vol': vol_value, 'timestamp': int(now)}
+
+	def run(self):
+		while True:
+			data = self._get_data()
+			data_json = json.dumps(data)
+			redis_conn.zadd("bitcoin", data_json, data['timestamp'])
+			time.sleep(25)
+		
+
+
+if __name__ == '__main__':
+	capture = Capture()
+	daemon_runner = runner.DaemonRunner(capture)
+	daemon_runner.do_action()
+
+
+	
+	
